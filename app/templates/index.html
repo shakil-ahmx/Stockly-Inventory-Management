@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Stockly · Inventory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E▦%3C/text%3E%3C/svg%3E">
+<script src="{{ url_for('static', filename='theme.js', v=asset_v) }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_v) }}">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">▦</span> Stockly</div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-view="products" aria-selected="true">Products</button>
+    <button class="tab" role="tab" data-view="activity" aria-selected="false">Activity</button>
+  </nav>
+  <div class="actions">
+    <select id="currency" aria-label="Currency" title="Currency">
+      <option>USD</option><option>BDT</option><option>EUR</option><option>GBP</option><option>INR</option><option>JPY</option><option>AED</option>
+    </select>
+    <button class="btn ghost icon" id="btnTheme" aria-label="Toggle theme">◐</button>
+    <button class="btn ghost" id="btnCats">Categories</button>
+    <button class="btn primary" id="btnNew">+ New product</button>
+  </div>
+</header>
+
+<main>
+  <section class="stats" id="stats" aria-label="Summary"></section>
+
+  <section id="viewProducts">
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search name or SKU…  ( / )" aria-label="Search products">
+      <select id="catFilter" aria-label="Filter by category"></select>
+      <select id="statusFilter" aria-label="Filter by stock level">
+        <option value="">All stock levels</option>
+        <option value="ok">In stock</option>
+        <option value="low">Low stock</option>
+        <option value="out">Out of stock</option>
+      </select>
+      <a class="btn ghost" id="btnExport" href="/api/products/export.csv">Export CSV</a>
+    </div>
+
+    <div class="card table-wrap">
+      <table>
+        <thead><tr>
+          <th data-sort="name" aria-sort="none">Product</th>
+          <th>Category</th>
+          <th data-sort="quantity" class="num" aria-sort="none">Stock</th>
+          <th data-sort="price" class="num" aria-sort="none">Price</th>
+          <th class="num">Value</th>
+          <th><span class="sr">Actions</span></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden></div>
+    </div>
+    <nav class="pager" aria-label="Pagination">
+      <button class="btn ghost" id="prev">‹ Prev</button><span id="pageInfo"></span><button class="btn ghost" id="next">Next ›</button>
+    </nav>
+  </section>
+
+  <section id="viewActivity" hidden>
+    <div class="card">
+      <ul class="feed" id="feed"></ul>
+      <div class="empty" id="feedEmpty" hidden>No stock movements yet. Adjust a product's stock to see it here.</div>
+    </div>
+    <nav class="pager"><button class="btn ghost" id="moreAct" hidden>Load more</button></nav>
+  </section>
+</main>
+
+<dialog id="dlgProduct"><form id="fProduct" method="dialog">
+  <h2 id="dlgTitle">New product</h2>
+  <div class="grid">
+    <label>SKU<input name="sku" required maxlength="64" autocomplete="off"><small class="ferr" data-err="sku"></small></label>
+    <label>Name<input name="name" required maxlength="120" autocomplete="off"><small class="ferr" data-err="name"></small></label>
+    <label>Category<select name="category_id"></select><small class="ferr" data-err="category_id"></small></label>
+    <label>Price<input name="price" type="number" step="0.01" min="0" value="0" inputmode="decimal"><small class="ferr" data-err="price"></small></label>
+    <label id="qtyWrap">Initial quantity<input name="quantity" type="number" min="0" step="1" value="0"><small class="ferr" data-err="quantity"></small></label>
+    <label>Reorder level<input name="reorder_level" type="number" min="0" step="1" value="10"><small class="ferr" data-err="reorder_level"></small></label>
+  </div>
+  <p class="hint" id="qtyHint" hidden>To change quantity, use the <b>Stock</b> button — every change is logged.</p>
+  <label>Description<textarea name="description" rows="2" maxlength="2000"></textarea></label>
+  <p class="err" role="alert"></p>
+  <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Save</button></div>
+</form></dialog>
+
+<dialog id="dlgStock" data-backdrop><form id="fStock" method="dialog">
+  <h2 id="stockTitle">Adjust stock</h2>
+  <div class="curr"><span>Current stock</span><b id="curQty">0</b><span class="badge" id="curBadge"></span></div>
+  <div class="seg" role="radiogroup" aria-label="Adjustment type">
+    <label><input type="radio" name="mode" value="add" checked><span>Add</span></label>
+    <label><input type="radio" name="mode" value="remove"><span>Remove</span></label>
+    <label><input type="radio" name="mode" value="set"><span>Set count</span></label>
+  </div>
+  <div class="amt">
+    <input name="amount" type="number" min="0" step="1" inputmode="numeric" placeholder="Quantity" aria-label="Quantity" required>
+    <div class="chips"><button type="button" data-act="chip" data-n="1">1</button><button type="button" data-act="chip" data-n="5">5</button><button type="button" data-act="chip" data-n="10">10</button><button type="button" data-act="chip" data-n="50">50</button></div>
+  </div>
+  <p class="preview" id="preview" aria-live="polite"></p>
+  <label>Reason<input name="reason" list="reasons" maxlength="200" placeholder="Optional — e.g. Restock, Sale"></label>
+  <datalist id="reasons"><option value="Restock"><option value="Sale"><option value="Customer return"><option value="Damaged / lost"><option value="Stock count correction"></datalist>
+  <h3>History</h3>
+  <ul class="moves" id="moves"></ul>
+  <p class="err" id="sErr" role="alert"></p>
+  <div class="foot"><button type="button" class="btn ghost" data-close>Close</button><button class="btn primary" id="sApply" disabled>Apply</button></div>
+</form></dialog>
+
+<dialog id="dlgCats" data-backdrop><form id="fCat" method="dialog">
+  <h2>Categories</h2>
+  <ul class="cats" id="catList"></ul>
+  <div class="inline"><input name="name" placeholder="New category name" required maxlength="80" aria-label="New category name"><button class="btn primary">Add</button></div>
+  <p class="err" id="cErr" role="alert"></p>
+  <div class="foot"><button type="button" class="btn ghost" data-close>Done</button></div>
+</form></dialog>
+
+<dialog id="dlgConfirm" data-backdrop><form method="dialog">
+  <h2 id="cfTitle">Are you sure?</h2>
+  <p id="cfMsg" class="muted"></p>
+  <div class="foot"><button value="cancel" class="btn ghost">Cancel</button><button value="ok" class="btn danger-solid" id="cfOk">Delete</button></div>
+</form></dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='app.js', v=asset_v) }}" defer></script>
+</body>
+</html>
